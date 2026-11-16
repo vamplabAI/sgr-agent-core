@@ -231,7 +231,7 @@ agents:
 # Настройки поисковых тулов задаются глобально в секции tools:
 tools:
   web_search_tool:
-    engine: "tavily"           # "tavily" (по умолчанию), "brave", "perplexity" или "serply"
+    engine: "tavily"           # "tavily" (по умолчанию), "brave", "perplexity", "serply" или "specstream"
     api_key: "your-tavily-api-key"
     max_results: 15
     max_searches: 6

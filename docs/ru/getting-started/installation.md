@@ -39,7 +39,7 @@ pip install "sgr-agent-core[mcp,search]"
 pip install "sgr-agent-core[all]"
 ```
 
-Движки `brave`, `perplexity` и `serply` в `WebSearchTool` работают по обычному HTTP,
+Движки `brave`, `perplexity`, `serply` и `specstream` в `WebSearchTool` работают по обычному HTTP,
 поэтому доступны в базовой установке без extra `search`.
 
 Если extra для нужной функции не установлен, SGR Agent Core сообщит об этом и

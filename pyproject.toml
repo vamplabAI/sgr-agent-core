@@ -68,7 +68,7 @@ mcp = [
     "jambo>=0.1.3.post2",
 ]
 # Tavily-backed WebSearchTool / ExtractPageContentTool.
-# The brave, perplexity and serply search engines need only httpx, i.e. core.
+# The brave, perplexity, serply and specstream search engines need only httpx, i.e. core.
 search = [
     "tavily-python>=0.3.0",
 ]

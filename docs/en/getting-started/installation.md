@@ -38,7 +38,7 @@ pip install "sgr-agent-core[mcp,search]"
 pip install "sgr-agent-core[all]"
 ```
 
-The `brave`, `perplexity` and `serply` search engines of `WebSearchTool` talk plain HTTP,
+The `brave`, `perplexity`, `serply` and `specstream` search engines of `WebSearchTool` talk plain HTTP,
 so they work on the core install without the `search` extra.
 
 If a feature's extra is missing, SGR Agent Core says so and names the command to
