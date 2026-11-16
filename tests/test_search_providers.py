@@ -79,6 +79,151 @@ class TestBraveSearchHandler:
             assert len(sources) == 1
 
 
+class TestSpecStreamSearchHandler:
+    """Tests for SpecStream search handler function."""
+
+    def test_convert_specstream_response(self):
+        from sgr_agent_core.tools.web_search_tool import _convert_specstream_response
+
+        response = {
+            "data": {
+                "sources": [
+                    {"title": "Page 1", "url": "https://example.com/page1", "snippet": "First result"},
+                    {"title": "Page 2", "url": "https://example.com/page2", "snippet": "Second result"},
+                    {"title": "No URL", "url": "", "snippet": "Skipped"},
+                ],
+            }
+        }
+        sources = _convert_specstream_response(response)
+        assert len(sources) == 2
+        assert sources[0].url == "https://example.com/page1"
+        assert sources[0].title == "Page 1"
+        assert sources[0].snippet == "First result"
+        assert sources[1].snippet == "Second result"
+        assert _convert_specstream_response({}) == []
+
+    def test_specstream_engine_is_registered(self):
+        from sgr_agent_core.tools.web_search_tool import (
+            _ENGINE_DEFAULT_URLS,
+            _ENGINE_HANDLERS,
+            WebSearchConfig,
+            _search_specstream,
+        )
+
+        assert WebSearchConfig(engine="specstream", api_key="key").engine == "specstream"
+        assert _ENGINE_HANDLERS["specstream"] is _search_specstream
+        assert _ENGINE_DEFAULT_URLS["specstream"] == "https://api.specstream.ai/v1/web-search"
+
+    @pytest.mark.asyncio
+    async def test_search_calls_specstream_api(self):
+        from sgr_agent_core.tools.web_search_tool import _search_specstream
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": {
+                "sources": [
+                    {"title": "Result", "url": "https://example.com", "snippet": "desc"},
+                ],
+            }
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("sgr_agent_core.tools.web_search_tool.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            sources = await _search_specstream(
+                api_key="test-key",
+                api_base_url="https://api.specstream.ai/v1/web-search",
+                query="test query",
+                max_results=5,
+                offset=0,
+            )
+
+            mock_client.get.assert_called_once()
+            call_kwargs = mock_client.get.call_args
+            assert call_kwargs.args[0] == "https://api.specstream.ai/v1/web-search"
+            assert call_kwargs.kwargs["headers"]["Authorization"] == "Bearer test-key"
+            assert call_kwargs.kwargs["headers"]["Accept"] == "application/json"
+            assert call_kwargs.kwargs["params"] == {"q": "test query", "num": 5, "speed": "fast"}
+            assert len(sources) == 1
+            assert sources[0].url == "https://example.com"
+            assert sources[0].title == "Result"
+            assert sources[0].snippet == "desc"
+
+    @pytest.mark.asyncio
+    async def test_search_applies_offset_and_caps_num(self):
+        from sgr_agent_core.tools.web_search_tool import _search_specstream
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "data": {
+                "sources": [
+                    {"title": f"Page {i}", "url": f"https://example.com/{i}", "snippet": f"s{i}"} for i in range(6)
+                ],
+            }
+        }
+        mock_response.raise_for_status = MagicMock()
+
+        with patch("sgr_agent_core.tools.web_search_tool.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            sources = await _search_specstream(
+                api_key="test-key",
+                api_base_url="https://api.specstream.ai/v1/web-search",
+                query="test query",
+                max_results=2,
+                offset=3,
+            )
+
+            params = mock_client.get.call_args.kwargs["params"]
+            assert params == {"q": "test query", "num": 5, "speed": "fast"}
+            assert [s.url for s in sources] == ["https://example.com/3", "https://example.com/4"]
+
+            await _search_specstream(
+                api_key="test-key",
+                api_base_url="https://api.specstream.ai/v1/web-search",
+                query="test query",
+                max_results=20,
+                offset=90,
+            )
+            assert mock_client.get.call_args.kwargs["params"]["num"] == 100
+
+    @pytest.mark.asyncio
+    async def test_search_raises_on_http_error(self):
+        import httpx
+
+        from sgr_agent_core.tools.web_search_tool import _search_specstream
+
+        request = httpx.Request("GET", "https://api.specstream.ai/v1/web-search")
+        response = httpx.Response(401, request=request, text="unauthorized")
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError("401", request=request, response=response)
+
+        with patch("sgr_agent_core.tools.web_search_tool.httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_cls.return_value = mock_client
+
+            with pytest.raises(httpx.HTTPStatusError):
+                await _search_specstream(
+                    api_key="bad-key",
+                    api_base_url="https://api.specstream.ai/v1/web-search",
+                    query="test query",
+                    max_results=5,
+                    offset=0,
+                )
+
+
 class TestPerplexitySearchHandler:
     """Tests for Perplexity search handler function."""
 

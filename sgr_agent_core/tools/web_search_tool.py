@@ -22,12 +22,14 @@ _TAVILY_DEFAULT_URL = "https://api.tavily.com"
 _BRAVE_DEFAULT_URL = "https://api.search.brave.com/res/v1/web/search"
 _PERPLEXITY_DEFAULT_URL = "https://api.perplexity.ai/search"
 _SERPLY_DEFAULT_URL = "https://api.serply.io/v1/search/"
+_SPECSTREAM_DEFAULT_URL = "https://api.specstream.ai/v1/web-search"
 
 _ENGINE_DEFAULT_URLS: dict[str, str] = {
     "tavily": _TAVILY_DEFAULT_URL,
     "brave": _BRAVE_DEFAULT_URL,
     "perplexity": _PERPLEXITY_DEFAULT_URL,
     "serply": _SERPLY_DEFAULT_URL,
+    "specstream": _SPECSTREAM_DEFAULT_URL,
 }
 
 
@@ -37,7 +39,7 @@ class WebSearchConfig(BaseModel, extra="allow"):
     Defines the search engine, credentials, and limits.
     """
 
-    engine: Literal["tavily", "brave", "perplexity", "serply"] = Field(
+    engine: Literal["tavily", "brave", "perplexity", "serply", "specstream"] = Field(
         default="tavily",
         description="Search engine provider to use",
     )
@@ -88,7 +90,7 @@ async def _search_tavily(
     fetch_count = max_results + offset if offset > 0 else max_results
     logger.info(f"Tavily search: '{query}' (max_results={max_results}, offset={offset})")
 
-    # tavily ships in the [search] extra; brave/perplexity/serply need only httpx.
+    # tavily ships in the [search] extra; brave/perplexity/serply/specstream need only httpx.
     AsyncTavilyClient = require("tavily", feature="WebSearchTool with engine='tavily'").AsyncTavilyClient
     client = AsyncTavilyClient(api_key=api_key, api_base_url=api_base_url)
     response = await client.search(query=query, max_results=fetch_count, include_raw_content=False)
@@ -158,6 +160,72 @@ async def _search_brave(
         raise
 
     return _convert_brave_response(data)
+
+
+# ---------------------------------------------------------------------------
+# SpecStream
+# ---------------------------------------------------------------------------
+
+
+def _convert_specstream_response(response: dict) -> list[SourceData]:
+    """Convert SpecStream Search API response to SourceData list."""
+    sources = []
+    raw_sources = (response.get("data") or {}).get("sources") or []
+    for i, result in enumerate(raw_sources):
+        url = result.get("url") or ""
+        if not url:
+            continue
+        source = SourceData(
+            number=i,
+            title=result.get("title") or "",
+            url=url,
+            snippet=result.get("snippet") or "",
+        )
+        sources.append(source)
+    return sources
+
+
+async def _search_specstream(
+    api_key: str,
+    api_base_url: str,
+    query: str,
+    max_results: int,
+    offset: int,
+) -> list[SourceData]:
+    """Perform search via SpecStream Search API (https://specstream.ai/docs/search-api).
+
+    Uses ``speed=fast`` since WebSearchTool only reads ranked sources.
+    Offset: over-fetch + slice (up to 100 sources).
+    """
+    fetch_count = min(max_results + offset, 100) if offset > 0 else min(max_results, 100)
+    logger.info(f"SpecStream search: '{query}' (max_results={max_results}, offset={offset})")
+
+    headers = {
+        "Accept": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
+    params: dict[str, Any] = {
+        "q": query,
+        "num": fetch_count,
+        "speed": "fast",
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(api_base_url, headers=headers, params=params, timeout=30.0)
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"SpecStream API HTTP error: {e.response.status_code} - {e.response.text[:200]}")
+        raise
+    except httpx.RequestError as e:
+        logger.error(f"SpecStream API request error: {e}")
+        raise
+
+    sources = _convert_specstream_response(data)
+    if offset > 0:
+        sources = sources[offset:]
+    return sources[:max_results]
 
 
 # ---------------------------------------------------------------------------
@@ -288,6 +356,7 @@ SearchHandler = Callable[..., Awaitable[list[SourceData]]]
 _ENGINE_HANDLERS: dict[str, SearchHandler] = {
     "tavily": _search_tavily,
     "brave": _search_brave,
+    "specstream": _search_specstream,
     "perplexity": _search_perplexity,
     "serply": _search_serply,
 }
@@ -313,7 +382,7 @@ def _rearrange_sources(sources: list[SourceData], starting_number: int = 1) -> l
 class WebSearchTool(BaseTool):
     """Search the web for real-time information about any topic.
 
-    Single search tool with pluggable engine (tavily, brave, perplexity, serply).
+    Single search tool with pluggable engine (tavily, brave, perplexity, serply, specstream).
     Engine is selected via tool config ``engine`` field.
 
     Use this tool when you need up-to-date information that might not be

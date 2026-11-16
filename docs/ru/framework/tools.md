@@ -318,7 +318,7 @@ execution:
 **Тип:** Вспомогательный тул
 **Исходный код:** [sgr_agent_core/tools/web_search_tool.py](https://github.com/vamplabAI/sgr-agent-core/blob/main/sgr_agent_core/tools/web_search_tool.py)
 
-Выполняет поиск в интернете для получения актуальной информации с использованием подключаемого поискового движка (Tavily, Brave, Perplexity или Serply).
+Выполняет поиск в интернете для получения актуальной информации с использованием подключаемого поискового движка (Tavily, Brave, Perplexity, Serply или SpecStream).
 
 **Параметры:**
 
@@ -328,7 +328,7 @@ execution:
 
 **Поведение:**
 
-- Выполняет поиск через настроенный движок (Tavily, Brave, Perplexity или Serply)
+- Выполняет поиск через настроенный движок (Tavily, Brave, Perplexity, Serply или SpecStream)
 - Добавляет найденные источники в словарь `context.sources`
 - Создаёт SearchResult и добавляет в `context.searches`
 - Увеличивает `context.searches_used`
@@ -353,7 +353,7 @@ execution:
 ```yaml
 tools:
   web_search_tool:
-    engine: "tavily"           # Поисковый движок: "tavily" (по умолчанию), "brave", "perplexity" или "serply"
+    engine: "tavily"           # Поисковый движок: "tavily" (по умолчанию), "brave", "perplexity", "serply" или "specstream"
     api_key: "your-api-key"    # Обязательно: API-ключ для выбранного движка
     # api_base_url: "https://custom-url"  # Опционально, используется URL по умолчанию движка
     max_searches: 4            # Максимальное количество поисковых операций
@@ -363,6 +363,8 @@ tools:
 После достижения `max_searches` тул автоматически удаляется из доступных тулов.
 
 Движок `serply` обращается к Serply Search API по адресу `https://api.serply.io/v1/search/`, передавая ключ в заголовке `X-Api-Key`, а `offset` нативно как `start` (10 результатов на страницу). Ключ можно получить на [serply.io](https://serply.io); поля запроса и ответа описаны в [serply.io/docs](https://serply.io/docs).
+
+Движок `specstream` обращается к SpecStream Search API по адресу `https://api.specstream.ai/v1/web-search` (`speed=fast`), передавая ключ как Bearer-токен. Ключ можно получить на [specstream.ai](https://specstream.ai); поля запроса и ответа описаны в [specstream.ai/docs/search-api](https://specstream.ai/docs/search-api).
 
 **Пример:**
 

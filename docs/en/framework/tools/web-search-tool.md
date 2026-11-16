@@ -6,7 +6,7 @@
 Searches the web for real-time information using Tavily Search API.
 
 The `tavily` engine needs the `search` extra (`pip install "sgr-agent-core[search]"`).
-The `brave`, `perplexity` and `serply` engines talk plain HTTP and work on the core install.
+The `brave`, `perplexity`, `serply` and `specstream` engines talk plain HTTP and work on the core install.
 
 **Parameters**
 
